@@ -43,6 +43,80 @@ if (! Array.prototype.indexOf) {
     };
 }
 
+var ParseXHR2 = function() {
+};
+
+ParseXHR2.prototype = {    
+  headers : null,
+  params: null,
+  url : null,
+  onreadystatechange: null,
+  readyState : 0,
+  method : "GET",
+  responseHeaders: null,
+  responseText: null,
+  status: -1,
+  
+  open : function(method, url, someboolvalue) {
+    this.method = method;
+    this.url = url;
+    this.readyState = 1;
+  },
+  
+  setRequestHeader : function(name, value) {
+    if (!this.headers) {
+      this.headers = {};
+    }
+    
+    this.headers[name] = value;
+  },
+  
+  send : function(body, handler) {     
+    if (!this.url) {
+      return false;
+    }
+    var settings = {};
+    settings["url"] = this.url;
+    settings["method"] = this.method;    
+    if (this.headers) {
+      settings["headers"] = this.headers;
+    }
+    if (body) {
+      settings["body"] = body;
+    }
+    this.readyState = 2;
+    settings["success"] = function(httpResponse) {
+      this.status = httpResponse.status;
+      this.responseText = httpResponse.text;
+      this.responseHeaders = httpResponse.headers;      
+      this.readyState = 4;
+      if (handler) {
+        handler(this);
+      }
+    };
+    settings["error"] = function(httpResponse) {
+      this.status = httpResponse.status;
+      this.responseText = httpResponse.text;
+      this.responseHeaders = httpResponse.headers;      
+      this.readyState = 4;      
+      if (handler) {
+        handler(this);
+      }
+    };
+    Parse.Cloud.httpRequest(settings);
+    
+  },
+  
+  getResponseHeader : function(header) {
+    if (!this.responseHeaders || !this.responseHeaders[header]) {
+      return "";
+    }
+    
+    return this.responseHeaders[header];
+  }
+};
+
+
 /**
  * A Twitter library in JavaScript
  *
@@ -558,7 +632,6 @@ var Codebird = function () {
         var httpmethod = _detectMethod(method_template, apiparams);
         var multipart = _detectMultipart(method_template);
         var internal = _detectInternal(method_template);
-
         return _callApi(
             httpmethod,
             method,
@@ -657,8 +730,7 @@ var Codebird = function () {
             (_use_proxy ? "X-" : "") + "Authorization",
             "Basic " + _base64_encode(_oauth_consumer_key + ":" + _oauth_consumer_secret)
         );
-
-        xml.onreadystatechange = function () {
+        var foo = function (xml) {
             if (xml.readyState >= 4) {
                 var httpstatus = 12027;
                 try {
@@ -675,8 +747,8 @@ var Codebird = function () {
                 }
                 callback(reply);
             }
-        };
-        xml.send(post_fields);
+        }.bind(xml);
+        xml.send(post_fields, foo);
 
     };
 
@@ -1213,6 +1285,12 @@ var Codebird = function () {
      */
     var _getXmlRequestObject = function () {
         var xml = null;
+        
+        if (typeof Parse !== "undefined") {
+          xml = new ParseXHR2();
+          return xml;
+        }
+        
         // first, try the W3-standard object
         if (typeof window === "object"
             && window
@@ -1397,7 +1475,7 @@ var Codebird = function () {
         if (authorization !== null) {
             xml.setRequestHeader((_use_proxy ? "X-" : "") + "Authorization", authorization);
         }
-        xml.onreadystatechange = function () {
+        var foo = function (xml) {
             if (xml.readyState >= 4) {
                 var httpstatus = 12027;
                 try {
@@ -1421,8 +1499,8 @@ var Codebird = function () {
                 }
                 callback(reply, rate);
             }
-        };
-        xml.send(httpmethod === "GET" ? null : post_fields);
+        }.bind(xml);
+        xml.send(httpmethod === "GET" ? null : post_fields, foo);
         return true;
     };
 
